@@ -182,6 +182,43 @@ static inline int v4l2_mpeg4_profile_from_ff(int p)
     return AVERROR(ENOENT);
 }
 
+static inline unsigned int v4l2_h264_level_from_ff(int p)
+{
+    static const struct h264_level  {
+        unsigned int ffmpeg_val;
+        unsigned int v4l2_val;
+    } levels[] = {
+        { 10, MPEG_VIDEO(H264_LEVEL_1_0) },
+        { 11, MPEG_VIDEO(H264_LEVEL_1_1) },
+        { 12, MPEG_VIDEO(H264_LEVEL_1_2) },
+        { 13, MPEG_VIDEO(H264_LEVEL_1_3) },
+        { 20, MPEG_VIDEO(H264_LEVEL_2_0) },
+        { 21, MPEG_VIDEO(H264_LEVEL_2_1) },
+        { 22, MPEG_VIDEO(H264_LEVEL_2_2) },
+        { 30, MPEG_VIDEO(H264_LEVEL_3_0) },
+        { 31, MPEG_VIDEO(H264_LEVEL_3_1) },
+        { 32, MPEG_VIDEO(H264_LEVEL_3_2) },
+        { 40, MPEG_VIDEO(H264_LEVEL_4_0) },
+        { 41, MPEG_VIDEO(H264_LEVEL_4_1) },
+        { 42, MPEG_VIDEO(H264_LEVEL_4_2) },
+        { 50, MPEG_VIDEO(H264_LEVEL_5_0) },
+        { 51, MPEG_VIDEO(H264_LEVEL_5_1) },
+        { 52, MPEG_VIDEO(H264_LEVEL_5_2) },
+        { 60, MPEG_VIDEO(H264_LEVEL_6_0) },
+        { 61, MPEG_VIDEO(H264_LEVEL_6_1) },
+        { 62, MPEG_VIDEO(H264_LEVEL_6_2) },
+    };
+    int i;
+
+
+    for (i = 0; i < FF_ARRAY_ELEMS(levels); i++) {
+        if (levels[i].ffmpeg_val == p)
+            return levels[i].v4l2_val;
+    }
+    return AVERROR(ENOENT);
+}
+
+
 static int v4l2_check_b_frame_support(V4L2m2mContext *s)
 {
     if (s->avctx->max_b_frames)
@@ -236,9 +273,10 @@ static int v4l2_prepare_encoder(V4L2m2mContext *s)
 
     av_log(avctx, AV_LOG_DEBUG,
         "Encoder Context: id (%d), profile (%d), frame rate(%d/%d), number b-frames (%d), "
-        "gop size (%d), bit rate (%"PRId64"), qmin (%d), qmax (%d)\n",
+        "gop size (%d), bit rate (%"PRId64"), qmin (%d), qmax (%d), level (%d)\n",
         avctx->codec_id, avctx->profile, avctx->framerate.num, avctx->framerate.den,
-        avctx->max_b_frames, avctx->gop_size, avctx->bit_rate, avctx->qmin, avctx->qmax);
+        avctx->max_b_frames, avctx->gop_size, avctx->bit_rate, avctx->qmin, avctx->qmax,
+        avctx->level);
 
     switch (avctx->codec_id) {
     case AV_CODEC_ID_H264:
@@ -248,6 +286,13 @@ static int v4l2_prepare_encoder(V4L2m2mContext *s)
                 av_log(avctx, AV_LOG_WARNING, "h264 profile not found\n");
             else
                 v4l2_set_ext_ctrl(s, MPEG_CID(H264_PROFILE), val, "h264 profile", 1);
+        }
+        if (avctx->level != AV_LEVEL_UNKNOWN) {
+            val = v4l2_h264_level_from_ff(avctx->level);
+            if (val < 0)
+                av_log(avctx, AV_LOG_WARNING, "h264 level not found\n");
+            else
+                v4l2_set_ext_ctrl(s, MPEG_CID(H264_LEVEL), val, "h264 level", 1);
         }
         qmin_cid = MPEG_CID(H264_MIN_QP);
         qmax_cid = MPEG_CID(H264_MAX_QP);
